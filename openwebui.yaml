@@ -1,0 +1,13 @@
+services:
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    restart: unless-stopped
+    network_mode: "container:ai-net"
+    environment:
+      - PORT=8082
+      - OLLAMA_BASE_URL=http://localhost:11434   # Aynı IP/stack -> localhost
+    volumes:
+      - openwebui_data:/app/backend/data
+volumes:
+  openwebui_data: {}

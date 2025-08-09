@@ -1,0 +1,14 @@
+services:
+  ollama-cpu:
+    image: ollama/ollama
+    container_name: ollama-cpu
+    restart: unless-stopped
+    network_mode: "container:ai-net"
+    environment:
+      - CUDA_VISIBLE_DEVICES=
+      - ROCM_VISIBLE_DEVICES=
+      - OLLAMA_HOST=0.0.0.0:11435
+    volumes:
+      - ollama_cpu_data:/root/.ollama
+volumes:
+  ollama_cpu_data: {}

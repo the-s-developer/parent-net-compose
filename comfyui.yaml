@@ -1,0 +1,28 @@
+services:
+  comfyui:
+    image: yanwk/comfyui-boot:cu126-slim
+    container_name: comfyui
+    restart: unless-stopped
+    networks:
+      nat99_net:
+        ipv4_address: 192.168.99.80   # Ağda benzersiz bir IP ver (çakışmasın)
+    ports:
+      - "8188:8188"  # Host'tan erişim için
+    volumes:
+      - comfyui:/root/ComfyUI
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  comfyui:
+    driver: s3fs
+    name: "comfyui"
+
+networks:
+  nat99_net:
+    external: true

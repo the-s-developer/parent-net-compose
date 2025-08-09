@@ -1,0 +1,17 @@
+services:
+  comfyui:
+    image: yanwk/comfyui-boot:cu126-slim
+    container_name: comfyui
+    restart: unless-stopped
+    network_mode: "container:ai-net"  # 👈 parent’ın network stack’i
+    volumes:
+      - comfyui:/root/ComfyUI
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+volumes:
+  comfyui:

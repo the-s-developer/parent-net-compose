@@ -1,0 +1,14 @@
+services:
+  ai-net:
+    image: alpine:latest
+    container_name: ai-net     # 👈 sabit isim şart
+    command: sleep infinity
+    restart: unless-stopped
+    ports:
+      - "8188:8188"                # dışa açılacak portlar sadece burada
+    networks:
+      nat99_net:
+        ipv4_address: 192.168.99.91
+networks:
+  nat99_net:
+    external: true
