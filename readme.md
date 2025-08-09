@@ -1,123 +1,123 @@
 # AI Network Docker Stack
 
-This repository contains multiple `docker-compose` configuration files for running an **AI service network** with shared networking and GPU acceleration.
-A dedicated container (`ai-net`) acts as the **parent network namespace**, allowing AI services to communicate via `localhost` without exposing unnecessary ports to the host.
+This stack runs multiple AI services that **share the same network namespace** through a dedicated container (`ai-net`).
+Using `network_mode: container:ai-net` allows all services to talk over `localhost` without exposing unnecessary ports to the host.
 
 ---
 
-## 📦 Services Overview
+## 📦 Services
 
-### 1. **ai-net** (`ai-net.yaml`)
+### **1. ai-net** (`ai-net.yaml`)
 
-* **Purpose**: Central network namespace for all AI containers.
+* **Purpose**: Parent network container for the stack.
 * **Image**: `alpine:latest`
-* **Special Notes**:
+* **Notes**:
 
-  * Fixed container name: `ai-net` (required for network sharing).
-  * Only this container maps ports to the host.
-  * Uses the external Docker network `nat99_net` with a static IP.
+  * **Fixed container name**: `ai-net` is required for other containers to join its stack.
+  * Only this container exposes ports to the host.
+* **Network**:
+
+  * Connected to external `nat99_net` with static IP `192.168.99.91`.
+* **Ports**:
+
+  * `8188:8188` — Only exposed here.
 
 ---
 
-### 2. **vLLM** (`vllm.yaml`)
+### **2. vLLM** (`vllm.yaml`)
 
-* **Purpose**: Runs [vLLM](https://github.com/vllm-project/vllm) as an OpenAI-compatible API.
+* **Purpose**: Runs [vLLM](https://github.com/vllm-project/vllm) as an OpenAI-compatible API server.
 * **Image**: `vllm/vllm-openai`
-* **Network**: Shares network stack with `ai-net`.
+* **Network**: Shares `ai-net` network namespace.
 * **Command Example**:
 
   ```bash
   --model HuggingFaceUser/ModelName --host 0.0.0.0 --port 8000
   ```
-* **GPU Support**: NVIDIA runtime enabled.
-* **Persistence**: Model cache stored in `huggingface_cache`.
+* **GPU Support**: All NVIDIA GPUs available.
+* **Persistence**: `huggingface_cache` stores model cache.
 
 ---
 
-### 3. **Open WebUI** (`openwebui.yaml`)
+### **3. ComfyUI** (`comfyui.yaml`)
 
-* **Purpose**: Web interface for interacting with LLMs.
-* **Image**: `ghcr.io/open-webui/open-webui:main`
-* **Network**: Shares `ai-net` stack.
-* **Environment Variables**:
-
-  * `PORT=8082`
-  * `OLLAMA_BASE_URL=http://localhost:11434` (connects to Ollama in same network)
-* **Persistence**: Data stored in `openwebui_data`.
+* **Purpose**: [ComfyUI](https://github.com/comfyanonymous/ComfyUI) for AI image workflows.
+* **Image**: `yanwk/comfyui-boot:cu126-slim`
+* **Network**: Shares `ai-net` network namespace.
+* **Persistence**: `comfyui` volume.
+* **GPU Support**: All NVIDIA GPUs available.
 
 ---
 
-### 4. **Ollama (GPU)** (`ollama.yaml`)
+### **4. llama.cpp** (`llamacpp.yaml`)
 
-* **Purpose**: [Ollama](https://ollama.com) server with GPU acceleration.
-* **Image**: `ollama/ollama`
-* **Network**: Shares `ai-net` stack.
-* **GPU**: All NVIDIA GPUs enabled.
-* **Persistence**: `ollama_gpu_data` volume.
-
----
-
-### 5. **Ollama (CPU)** (`ollama-cpu.yaml`)
-
-* **Purpose**: CPU-only Ollama instance.
-* **Image**: `ollama/ollama`
-* **Network**: Shares `ai-net` stack.
-* **Environment**:
-
-  * `CUDA_VISIBLE_DEVICES=` (disables GPU)
-  * `ROCM_VISIBLE_DEVICES=` (disables AMD GPU)
-  * `OLLAMA_HOST=0.0.0.0:11435` (alternate port)
-* **Persistence**: `ollama_cpu_data`.
-
----
-
-### 6. **llama.cpp** (`llamacpp.yaml`)
-
-* **Purpose**: [llama.cpp](https://github.com/ggerganov/llama.cpp) server.
+* **Purpose**: Runs [llama.cpp](https://github.com/ggerganov/llama.cpp) in server mode.
 * **Image**: `ghcr.io/ggerganov/llama.cpp:server-cuda-cu121`
-* **Network**: Shares `ai-net` stack.
+* **Network**: Shares `ai-net` network namespace.
 * **Command Example**:
 
   ```bash
   --model /models/your-model.gguf --host 0.0.0.0 --port 8081 --n-gpu-layers -1
   ```
-* **GPU**: NVIDIA runtime.
-* **Persistence**: Models in `model_storage`.
+* **Persistence**: `model_storage` stores models.
+* **GPU Support**: All NVIDIA GPUs available.
 
 ---
 
-### 7. **ComfyUI (Standalone)** (`comfyui.yaml`)
+### **5. Ollama (CPU)** (`ollama-cpu.yaml`)
 
-* **Purpose**: [ComfyUI](https://github.com/comfyanonymous/ComfyUI) image generation workflow.
-* **Image**: `yanwk/comfyui-boot:cu126-slim`
-* **Network**: Uses `nat99_net` with unique static IP.
-* **Ports**: Exposes `8188` to host.
-* **Persistence**: `comfyui` (S3FS driver for remote storage).
+* **Purpose**: CPU-only [Ollama](https://ollama.com) instance.
+* **Image**: `ollama/ollama`
+* **Network**: Shares `ai-net` network namespace.
+* **Environment Variables**:
 
----
-
-### 8. **ComfyUI (Inside ai-net)** (`comf.yaml`)
-
-* **Purpose**: ComfyUI running inside `ai-net` network namespace.
-* **Image**: `yanwk/comfyui-boot:cu126-slim`
-* **Network**: `network_mode: "container:ai-net"`
-* **GPU**: NVIDIA runtime.
-* **Persistence**: `comfyui`.
+  * `CUDA_VISIBLE_DEVICES=` — disables NVIDIA GPU usage.
+  * `ROCM_VISIBLE_DEVICES=` — disables AMD GPU usage.
+  * `OLLAMA_HOST=0.0.0.0:11435` — listens on alternate port.
+* **Persistence**: `ollama_cpu_data`.
 
 ---
 
-## 🌐 Networking Architecture
+### **6. Ollama (GPU)** (`ollama.yaml`)
 
-* **Centralized Network**:
-  Services using `network_mode: "container:ai-net"` share the same localhost and IP.
-* **External Network (`nat99_net`)**:
-  Allows `ai-net` and standalone containers to have static IPs.
+* **Purpose**: GPU-enabled Ollama instance.
+* **Image**: `ollama/ollama`
+* **Network**: Shares `ai-net` network namespace.
+* **Persistence**: `ollama_gpu_data`.
+* **GPU Support**: All NVIDIA GPUs available.
+
+---
+
+### **7. Open WebUI** (`openwebui.yaml`)
+
+* **Purpose**: Web interface for interacting with LLMs.
+* **Image**: `ghcr.io/open-webui/open-webui:main`
+* **Network**: Shares `ai-net` network namespace.
+* **Environment Variables**:
+
+  * `PORT=8082`
+  * `OLLAMA_BASE_URL=http://localhost:11434` — connects to Ollama via shared localhost.
+* **Persistence**: `openwebui_data`.
+
+---
+
+## 🌐 Networking
+
+* **`ai-net`** is the **network hub**.
+* Containers with:
+
+  ```yaml
+  network_mode: "container:ai-net"
+  ```
+
+  share **the same IP and localhost** as `ai-net`.
+* `nat99_net` is an **external bridge network** for static IPs and host access.
 
 ---
 
 ## 🚀 Deployment
 
-### 1. Create External Network
+### 1. Create the external network
 
 ```bash
 docker network create \
@@ -126,13 +126,13 @@ docker network create \
   nat99_net
 ```
 
-### 2. Start `ai-net`
+### 2. Start `ai-net` first
 
 ```bash
 docker compose -f ai-net.yaml up -d
 ```
 
-### 3. Start Other Services
+### 3. Start the other services
 
 ```bash
 docker compose -f vllm.yaml up -d
@@ -140,93 +140,41 @@ docker compose -f openwebui.yaml up -d
 docker compose -f ollama.yaml up -d
 docker compose -f ollama-cpu.yaml up -d
 docker compose -f llamacpp.yaml up -d
-docker compose -f comf.yaml up -d
-```
-
-For standalone ComfyUI:
-
-```bash
 docker compose -f comfyui.yaml up -d
 ```
 
 ---
 
-## 🖥 Enabling Server Access to `nat99_net`
-
-By default, `nat99_net` is internal to Docker.
-If you want the **host server** (or other machines) to reach containers in `nat99_net`, follow these steps:
-
-### 1. Add a Host Interface for `nat99_net`
-
-```bash
-sudo ip link add br-nat99 link docker0 type macvlan mode bridge
-sudo ip addr add 192.168.99.1/24 dev br-nat99
-sudo ip link set br-nat99 up
-```
-
-Here `192.168.99.1` is the host’s IP in that subnet.
-
----
-
-### 2. Enable IP Forwarding & NAT (Optional for external access)
-
-```bash
-sudo sysctl -w net.ipv4.ip_forward=1
-echo "net.ipv4.ip_forward=1" | sudo tee -a /etc/sysctl.conf
-
-# Replace eth0 with your internet-facing interface
-sudo iptables -t nat -A POSTROUTING -s 192.168.99.0/24 -o eth0 -j MASQUERADE
-```
-
----
-
-### 3. Test Connectivity
-
-```bash
-ping 192.168.99.91   # ai-net container IP
-curl http://192.168.99.91:8188
-```
-
-If successful, your host can directly access all containers in `nat99_net`.
-
----
-
 ## 📁 Volumes
 
-| Volume Name        | Purpose                  |
-| ------------------ | ------------------------ |
-| huggingface\_cache | HuggingFace model cache  |
-| openwebui\_data    | Open WebUI data storage  |
-| ollama\_gpu\_data  | Ollama GPU model storage |
-| ollama\_cpu\_data  | Ollama CPU model storage |
-| model\_storage     | llama.cpp model storage  |
-| comfyui            | ComfyUI workflows & data |
+| Volume Name        | Purpose                      |
+| ------------------ | ---------------------------- |
+| huggingface\_cache | HuggingFace model cache      |
+| comfyui            | ComfyUI workflows & settings |
+| model\_storage     | llama.cpp models             |
+| ollama\_cpu\_data  | Ollama CPU data              |
+| ollama\_gpu\_data  | Ollama GPU data              |
+| openwebui\_data    | Open WebUI data              |
 
 ---
 
 ## 🖥 GPU Requirements
 
-For GPU-enabled services:
+For GPU-enabled containers:
 
-* Install NVIDIA drivers on the host.
-* Install [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
-* Docker Compose GPU config:
+1. Install **NVIDIA GPU drivers**.
+2. Install [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
+3. Test:
 
-```yaml
-deploy:
-  resources:
-    reservations:
-      devices:
-        - driver: nvidia
-          count: all
-          capabilities: [gpu]
-```
+   ```bash
+   docker run --rm --gpus all nvidia/cuda:12.2.0-base nvidia-smi
+   ```
 
 ---
 
 ## 📌 Notes
 
-* **Fixed Container Names**: Required when using `network_mode: "container:ai-net"`.
-* **Port Mapping**: Only `ai-net` or standalone services expose ports to the host.
-* **Service-to-Service Communication**: Use `localhost` when sharing the `ai-net` stack.
+* Only `ai-net` exposes ports to the host; all others use `localhost` internally.
+* Fixed container names are **mandatory** when using `network_mode: container:ai-net`.
+* Services can talk to each other via `localhost` when sharing `ai-net`.
 
